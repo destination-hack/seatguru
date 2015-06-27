@@ -42,7 +42,7 @@ def structure_response(response):
     seat_identifier = extract_seat_identifier(seat)
 
     details = extract_details(response, seat)
-    details['class'] = get_seat_class(classes, int(seat_identifier[0])) 
+    details['class'] = get_seat_class(classes, int(seat_identifier[0]))
     result[seat_identifier] = details
   return result
 

@@ -1,61 +1,16 @@
 from flask import Flask, render_template, request, redirect
 import re
-from flask.ext.sqlalchemy import SQLAlchemy
-import flask.ext.restless
 import twilio.twiml
 import seatguru
+import flightaware
 
 app = Flask(__name__)
-
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:desthack101xyz@localhost/FlaskApp'
-db = SQLAlchemy(app)
-
-# ------------------------------------------
-# Database ORM Section - with Flask SQLAlchemy
-# ------------------------------------------
-
-# Example ORM model - please modify to your requirements
-# SQL Alchemy quick reference: pythonhosted.org/Flask-SQLAlchemy/quickstart.html
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True)
-    email = db.Column(db.String(120), unique=True)
-
-    def __init__(self, username, email):
-        self.username = username
-        self.email = email
-
-    def __repr__(self):
-        return '<User %r>' % self.username
-
-# ------------------------------------------
-# Database API Section - with Flask Restless
-# ------------------------------------------
-
-manager = flask.ext.restless.APIManager(app, flask_sqlalchemy_db=db)
-manager.create_api(User, methods=['GET', 'POST', 'DELETE'])
-
-
-# ------------------------------------------
-# Routing Section
-# ------------------------------------------
-
-# Sets up the database - visit this page after configuring 
-# SQLAlchemy models above 
-@app.route("/mysql_db_setup")
-def db_setup():
-	try:
-		# Database setup logic
-		db.create_all()
-		return "Database setup was successfull, please disable db_setup() in your application"
-	except Exception, e:
-		return str(e)
 
 # Root page - please change as required
 @app.route("/")
 def index():
 	try:
-		# Index logic goes here 
+		# Index logic goes here
 		return render_template("index.html")
 	except Exception, e:
 		return str(e)
@@ -75,14 +30,14 @@ def twilio_response():
 		resp = twilio.twiml.Response()
 		resp.message("An error occured :(")
 		return str(resp)
-		
+
 
 '''
 Given a seat number and a flight number
 return the best possible seat with an explanation as to why its good
 - this is the top level function that calls everything
 '''
-def seat_info_string(seatnum):
+def seat_info_string(airline, aircraft, seatnum):
 	seat_info = seatguru.get_airline_info("BA", "747")
 	if split_seat_num(seatnum) in seat_info.keys():
 		matched_seat = seat_info[split_seat_num(seatnum)]
@@ -102,10 +57,10 @@ def get_seat_list_in_order(airline, plane, seatnum=None):
 			current_seat = seat_info[seatkey]
 			seat_type = current_seat['class']
 			seat_info = dict((k,v) for (k,v) in seat_info.items() if v["class"] == seat_type)
-	
+
 	seat_list = [(k,v) for (k,v) in seat_info.items()]
 	return reversed(sorted(seat_list, key=rank_for_seat_tuple))
-	
+
 
 def rank_for_seat_tuple(seat_tuple):
 	return seat_tuple[1]["score"]
@@ -124,18 +79,25 @@ Given a message, return a response. This is wrapped by the route
 '''
 def response_for_message_body(message_body):
 	flightnum, flightmsg = get_flight_number(message_body)
+
+
 	seatnum, seatmsg = get_seat_number(message_body)
 
 	response = ""
 
 	if flightnum and seatnum:
-		seatinfo = seat_info_string(seatnum)
+		# IATA says that airline codes are two letter
+		# ICAO says that they are three letters, whopee
+		airline = flightnum[0:1]
+		depart, arrive, aircraft = flightaware.get_flight_details(flightnum)
+
+		seatinfo = seat_info_string(airline, aircraft, seatnum)
 		if seatinfo:
 			response = "You're on flight " +  flightnum + ", " + seatinfo.replace("{SEAT}", seatnum).encode('utf-8')
 		else:
 			response = "This seat does not exist!"
 	else:
-		response = "Error! " + flightmsg + ", " + seatmsg 
+		response = "Error! " + flightmsg + ", " + seatmsg
 
 	return response
 
@@ -156,10 +118,9 @@ def get_seat_number(message):
 		response = "Invalid seat number provided"
 		number = None
 	else:
-		# Too many numbers!	
+		# Too many numbers!
 		response = "You provided more than 1 seat number"
 		number = None
-
 	return (number, response)
 
 '''
@@ -179,7 +140,7 @@ def get_flight_number(message):
 		response = "Flight not found"
 		number = None
 	else:
-		# Too many numbers!	
+		# Too many numbers!
 		response = "You provided more than 1 flight number"
 		number = None
 
