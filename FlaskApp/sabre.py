@@ -20,6 +20,7 @@ SABRE_API_BASE = 'https://api.test.sabre.com'
 AUTH_TOKEN_ENDPOINT = '/v1/auth/token'
 SEATMAP_ENDPOINT = '/v3.0.0/book/flights/seatmaps?mode=seatmaps'
 
+# obtains an access token to talk to SABRE APIs
 @retry(stop_max_attempt_number=5)
 def get_access_token():
   def build_credentials():
@@ -47,22 +48,92 @@ def get_access_token():
     headers=headers)
   return extract_token(response)
 
-@retry(stop_max_attempt_number=5)
-def get_seat_map():
-  sample_request  = open('sample_data/sabre_seatmap_rest.json', 'r').read()
-  print "\n\n"
-  print sample_request
-  print "\n\n"
-  headers = {
-    'Authorization': 'Bearer {}'.format(get_access_token()),
-    'Accept': 'application/json',
-    'Content-Type': 'application/json'
-  }
-  # return None
-  response = requests.post("{}{}".format(SABRE_API_BASE, SEATMAP_ENDPOINT),
-    headers=headers,
-    data=sample_request)
-  return response
+# returns a map of all seats in format [(row, seat_number) : { 'available': True, 'price': '100 USD' }] for a given flight
+def get_seat_map(origin, destination, departure_date, carrier, flight_number):
+
+  def build_request():
+    return open('sample_data/sabre_seatmap_rest.json', 'r').read()
+    # return "EnhancedSeatMapRQ": {
+    #     "SeatMapQueryEnhanced": {
+    #       "RequestType": "Payload",
+    #       "Flight": {
+    #         "origin": origin,
+    #         "destination": destination,
+    #         "DepartureDate": {
+    #           "content": departure_date
+    #         },
+    #         # "ArrivalDate": {
+    #         #   "content": departure_date
+    #         # },
+    #         "Operating": {
+    #           "carrier": carrier,
+    #           "content": flight_number,
+    #         },
+    #         "Marketing": [{
+    #           "carrier": carrier,
+    #           "content": flight_number,
+    #         }]
+    #       },
+    #       "CabinDefinition": {
+    #         "RBD": "Y"
+    #       }
+    #     }
+    #   }
+    # }
+
+  # returns a map of all seats in format [(row, seat_number) : { 'available': True, 'price': '100 USD' }] 
+  def parse_response(response):
+    data = json.loads(response.text)
+    seats = {}
+    for row_data in data["EnhancedSeatMapRS"]["SeatMap"][0]["Cabin"][0]["Row"]:
+      for seat in parse_row(row_data):
+          seat_key = (seat["row"], seat["number"])
+          seat_details = { "available": seat["available"] }
+          if "price" in seat:
+            seat_details["price"] = seat["price"]
+          # store seat          
+          seats[seat_key] = seat_details
+
+    return seats
+
+  # extracts seat details from Sabre response
+  def parse_seat(seat_data, row_number):
+    seat = {}
+    seat["row"] = row_number
+    seat["number"] = seat_data["Number"]
+    seat["available"] = not seat_data["occupiedInd"]
+    if "Price" in seat_data:
+      price = seat_data["Price"][0]["TotalAmount"]
+      seat["price"] = price["content"] + ' ' + price["currencyCode"]
+
+    return seat
+
+  # returns a list of seat details from a given row data
+  def parse_row(row_data):
+    seats = []
+    row_number = row_data["RowNumber"]
+    for seat_data in row_data["Seat"]:
+      seats.append(parse_seat(seat_data, row_number))
+    
+    return seats
+
+  @retry(stop_max_attempt_number=5)
+  def perform_call():
+    headers = {
+      'Authorization': 'Bearer {}'.format(get_access_token()),
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    }
+    request = build_request()
+    #request = json.dumps(build_request(), indent=2)
+
+    return requests.post("{}{}".format(SABRE_API_BASE, SEATMAP_ENDPOINT), 
+      headers=headers,
+      data=request)
+  
+  response = perform_call()
+  seats = parse_response(response)
+  return seats
 
 # https://api.test.sabre.com/v1/lists/utilities/airlines?airlinecode=BA
 # https://api.test.sabre.com/v1/lists/utilities/aircraft/equipment?aircraftcode=747
