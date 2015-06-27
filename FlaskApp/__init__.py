@@ -59,24 +59,6 @@ def index():
 		return render_template("index.html")
 	except Exception, e:
 		return str(e)
-		
-def split_seat_num(seatnum):
-	num = re.findall("[0-9]+", seatnum)[0]
-	row = re.findall("[A-Za-z]", seatnum)[0]
-	return (int(num), row)
-
-def seat_info_string(seatnum):
-	seat_info = seatguru.get_airline_info("BA", "747")
-	if split_seat_num(seatnum) in seat_info.keys():
-		matched_seat = seat_info[split_seat_num(seatnum)]
-		return matched_seat["description"]
-	else:
-		return None
-
-  
-@app.route("/hello")
-def hellotest():
-	return "Hello!"
 
 @app.route("/twilio", methods=['GET','POST'])
 def twilio_response():
@@ -95,6 +77,51 @@ def twilio_response():
 		return str(resp)
 		
 
+'''
+Given a seat number and a flight number
+return the best possible seat with an explanation as to why its good
+- this is the top level function that calls everything
+'''
+def seat_info_string(seatnum):
+	seat_info = seatguru.get_airline_info("BA", "747")
+	if split_seat_num(seatnum) in seat_info.keys():
+		matched_seat = seat_info[split_seat_num(seatnum)]
+		return matched_seat["description"]
+	else:
+		return None
+
+'''
+output: list of ((Row, "A-F"),{data})
+data keys: class, score, description
+'''
+def get_seat_list_in_order(airline, plane, seatnum=None):
+	seat_info = seatguru.get_airline_info(airline, plane)
+	if seatnum:
+		seatkey = split_seat_num(seatnum)
+		if seatkey in seat_info.keys():
+			current_seat = seat_info[seatkey]
+			seat_type = current_seat['class']
+			seat_info = dict((k,v) for (k,v) in seat_info.items() if v["class"] == seat_type)
+	
+	seat_list = [(k,v) for (k,v) in seat_info.items()]
+	return reversed(sorted(seat_list, key=rank_for_seat_tuple))
+	
+
+def rank_for_seat_tuple(seat_tuple):
+	return seat_tuple[1]["score"]
+
+'''
+input: "6A"
+output: (6,"A")
+'''
+def split_seat_num(seatnum):
+	num = re.findall("[0-9]+", seatnum)[0]
+	row = re.findall("[A-Za-z]", seatnum)[0]
+	return (int(num), row)
+
+'''
+Given a message, return a response. This is wrapped by the route
+'''
 def response_for_message_body(message_body):
 	flightnum, flightmsg = get_flight_number(message_body)
 	seatnum, seatmsg = get_seat_number(message_body)
@@ -112,6 +139,9 @@ def response_for_message_body(message_body):
 
 	return response
 
+'''
+Parse the message and get the seat number
+'''
 def get_seat_number(message):
 	seat_numbers = re.findall("[0-9]{1,2}[a-zA-Z]{1}", message)
 	response = ""
@@ -132,6 +162,9 @@ def get_seat_number(message):
 
 	return (number, response)
 
+'''
+Parse the message and get the flight number
+'''
 def get_flight_number(message):
 	flight_numbers = re.findall("[a-zA-Z0-9]{2}[a-zA-Z]?[0-9]{1,4}[a-zA-Z]?", message)
 	response = ""
