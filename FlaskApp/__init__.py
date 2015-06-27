@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect
 import re
 import twilio.twiml
 import seatguru
+# import sabre
 import flightaware
 
 app = Flask(__name__)
@@ -26,11 +27,10 @@ def twilio_response():
 		resp = twilio.twiml.Response()
 		resp.message(response)
 		return str(resp)
-	except Exception:
+	except Exception as e:
 		resp = twilio.twiml.Response()
 		resp.message("An error occured :(")
-		return str(resp)
-
+		return resp
 
 '''
 Given a seat number and a flight number
@@ -38,7 +38,7 @@ return the best possible seat with an explanation as to why its good
 - this is the top level function that calls everything
 '''
 def seat_info_string(airline, aircraft, seatnum):
-	seat_info = seatguru.get_airline_info("BA", "747")
+	seat_info = seatguru.get_airline_info(airline, aircraft)
 	if split_seat_num(seatnum) in seat_info.keys():
 		matched_seat = seat_info[split_seat_num(seatnum)]
 		return matched_seat["description"]
@@ -74,32 +74,38 @@ def split_seat_num(seatnum):
 	row = re.findall("[A-Za-z]", seatnum)[0]
 	return (int(num), row)
 
+def parse_text_message(message_body):
+	flightnum, flightmsg = get_flight_number(message_body)
+	seatnum, seatmsg = get_seat_number(message_body)
+
+	if not flightnum or not seatnum:
+		raise ValueError("Error! {}, {}".format(flightmsg, seatmsg))
+
+	return (flightnum, seatnum)
+
 '''
 Given a message, return a response. This is wrapped by the route
 '''
 def response_for_message_body(message_body):
-	flightnum, flightmsg = get_flight_number(message_body)
+	try:
+		flight_code, seat_code = parse_text_message(message_body)
+	except ValueError as e:
+		return e
 
+	# IATA says that airline codes are two letter
+	# ICAO says that they are three letters, whopee
+	airline, flight_number = flight_code[0:2], flight_code[2:-1]
+	depart, arrive, aircraft = flightaware.get_flight_details(flight_code)
 
-	seatnum, seatmsg = get_seat_number(message_body)
+	# throws error if the flight is not found in Sabre (that's what their API does)
+	# sabre.get_seat_map(depart, arrive, date, airline, flight_number)
 
-	response = ""
-
-	if flightnum and seatnum:
-		# IATA says that airline codes are two letter
-		# ICAO says that they are three letters, whopee
-		airline = flightnum[0:1]
-		depart, arrive, aircraft = flightaware.get_flight_details(flightnum)
-
-		seatinfo = seat_info_string(airline, aircraft, seatnum)
-		if seatinfo:
-			response = "You're on flight " +  flightnum + ", " + seatinfo.replace("{SEAT}", seatnum).encode('utf-8')
-		else:
-			response = "This seat does not exist!"
+	seatinfo = seat_info_string(airline, aircraft, seat_code)
+	if seatinfo:
+		return "You're on flight {}, {}".format(flight_code,
+			seatinfo.replace("{SEAT}", seat_code).encode('utf-8'))
 	else:
-		response = "Error! " + flightmsg + ", " + seatmsg
-
-	return response
+		return "This seat does not exist!"
 
 '''
 Parse the message and get the seat number
@@ -128,8 +134,6 @@ Parse the message and get the flight number
 '''
 def get_flight_number(message):
 	flight_numbers = re.findall("[a-zA-Z0-9]{2}[a-zA-Z]?[0-9]{1,4}[a-zA-Z]?", message)
-	response = ""
-	number = ""
 
 	if len(flight_numbers) == 1:
 		# Success!
@@ -143,9 +147,10 @@ def get_flight_number(message):
 		# Too many numbers!
 		response = "You provided more than 1 flight number"
 		number = None
-
 	return (number, response)
 
 if __name__ == "__main__":
-	app.run(debug=True)
+	app.debug = True
+	app.run()
+	# app.run(debug=True)
 
