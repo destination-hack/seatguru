@@ -18,29 +18,29 @@ def index():
 
 @app.route("/twilio", methods=['GET','POST'])
 def twilio_response():
-	try:
-		phone_number = request.values.get('From')
-		message_body = request.values.get('Body')
+	# try:
+	phone_number = request.values.get('From')
+	message_body = request.values.get('Body')
 
-		response = response_for_message_body(message_body)
+	response = response_for_message_body(message_body)
 
-		resp = twilio.twiml.Response()
-		resp.message(response)
-		return str(resp)
-	except Exception as e:
-		resp = twilio.twiml.Response()
-		resp.message("An error occured :(")
-		return resp
+	resp = twilio.twiml.Response()
+	resp.message(response)
+	return str(resp)
+	# except Exception as e:
+		# resp = twilio.twiml.Response()
+		# resp.message("An error occured :(")
+		# return resp
 
 '''
 Given a seat number and a flight number
 return the best possible seat with an explanation as to why its good
 - this is the top level function that calls everything
 '''
-def seat_info_string(seat_list, seat_code):
+def get_seat_info(seat_list, seat_code):
 	for seat in seat_list:
 		if split_seat_num(seat_code) == seat[0]:
-			return seat[1]['description']
+			return seat[1]
 	return None
 
 '''
@@ -57,7 +57,7 @@ def get_seat_list_in_order(airline, plane, seatnum=None):
 			seat_info = dict((k,v) for (k,v) in seat_info.items() if v["class"] == seat_type)
 
 	seat_list = [(k,v) for (k,v) in seat_info.items()]
-	return reversed(sorted(seat_list, key=rank_for_seat_tuple))
+	return list(reversed(sorted(seat_list, key=rank_for_seat_tuple)))
 
 
 def rank_for_seat_tuple(seat_tuple):
@@ -98,12 +98,27 @@ def response_for_message_body(message_body):
 	# throws error if the flight is not found in Sabre (that's what their API does)
 	# sabre.get_seat_map(depart, arrive, date, airline, flight_number)
 	all_seats = get_seat_list_in_order(airline, aircraft)
-	seatinfo  = seat_info_string(all_seats, seat_code)
-	if seatinfo:
-		return "You're on flight {}, {}".format(flight_code,
-			seatinfo.replace("{SEAT}", seat_code).encode('utf-8'))
-	else:
+	my_seat  	= get_seat_info(all_seats, seat_code)
+	if not my_seat:
 		return "This seat does not exist!"
+
+	best_seat = all_seats[0]
+	if compare_seat(my_seat, best_seat[1]) >= 0:
+		seat_description = interpolate_description(my_seat, seat_code)
+		return "You're on flight {}, {}".format(flight_code, seat_description)
+	else:
+		# (21, u'D') -> "21D"
+		top_seat_codes = map(lambda top_seat: create_seat_code(top_seat[0]), all_seats[0:4])
+		best_seat_code = create_seat_code(best_seat[0])
+		seat_description = interpolate_description(best_seat[1], best_seat_code)
+		return "You have a shitty seat! You can try seats {}. {}".format(
+			" ".join(top_seat_codes), seat_description)
+
+def create_seat_code(seat_code_tuple):
+	return str(seat_code_tuple[0]) + seat_code_tuple[1]
+
+def interpolate_description(seat_info, seat_code):
+	return seat_info['description'].replace("{SEAT}", seat_code).encode('utf-8')
 
 '''
 Parse the message and get the seat number
@@ -126,6 +141,9 @@ def get_seat_number(message):
 		response = "You provided more than 1 seat number"
 		number = None
 	return (number, response)
+
+def compare_seat(first, second):
+	return first['score'] - second['score']
 
 '''
 Parse the message and get the flight number
