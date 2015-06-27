@@ -28,15 +28,40 @@ def get_access_token():
   def build_auth_endpoint():
     return "{}{}".format(SABRE_API_BASE, AUTH_TOKEN_ENDPOINT)
 
+  def extract_token(response):
+    if response.status_code == 200:
+      return json.loads(response.text)['access_token']
+    else:
+      raise "Could not authenticate against Sabre!"
+
   credentials   = build_credentials()
   headers       = {
     'Authorization': "Basic {}".format(credentials),
     'Content-Type': 'application/x-www-form-urlencoded'
   }
   body          = 'grant_type=client_credentials'
-  r = requests.post(build_auth_endpoint(),
+  response = requests.post(build_auth_endpoint(),
     data=body,
     headers=headers)
-  return r
+  return extract_token(response)
 
-get_access_token()
+# Authorization: Bearer Shared/IDL:IceSess\/SessMgr:1\.0.IDL/Common/!ICESMS\/ACPCRTD!ICESMSLB\/CRT.LB!-0123456789012345678!123456!0!ABCDEFGHIJKLM!E2E-1
+# X-Originating-Ip: 89.197.36.132
+# Content-Type: application/json
+
+def get_seat_map():
+  sample_request  = open('sample_data/sabre_seatmap_rest.json', 'r').read()
+  print "\n\n"
+  print sample_request
+  print "\n\n"
+  headers = {
+    'Authorization': 'Bearer {}'.format(get_access_token()),
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+    'X-Originating-Ip': '89.197.36.132'
+  }
+  # return None
+  response = requests.post("{}{}".format(SABRE_API_BASE, SEATMAP_ENDPOINT),
+    headers=headers,
+    data=sample_request)
+  return response
