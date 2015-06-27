@@ -37,13 +37,11 @@ Given a seat number and a flight number
 return the best possible seat with an explanation as to why its good
 - this is the top level function that calls everything
 '''
-def seat_info_string(airline, aircraft, seatnum):
-	seat_info = seatguru.get_airline_info(airline, aircraft)
-	if split_seat_num(seatnum) in seat_info.keys():
-		matched_seat = seat_info[split_seat_num(seatnum)]
-		return matched_seat["description"]
-	else:
-		return None
+def seat_info_string(seat_list, seat_code):
+	for seat in seat_list:
+		if split_seat_num(seat_code) == seat[0]:
+			return seat[1]['description']
+	return None
 
 '''
 output: list of ((Row, "A-F"),{data})
@@ -99,8 +97,8 @@ def response_for_message_body(message_body):
 
 	# throws error if the flight is not found in Sabre (that's what their API does)
 	# sabre.get_seat_map(depart, arrive, date, airline, flight_number)
-
-	seatinfo = seat_info_string(airline, aircraft, seat_code)
+	all_seats = get_seat_list_in_order(airline, aircraft)
+	seatinfo  = seat_info_string(all_seats, seat_code)
 	if seatinfo:
 		return "You're on flight {}, {}".format(flight_code,
 			seatinfo.replace("{SEAT}", seat_code).encode('utf-8'))
