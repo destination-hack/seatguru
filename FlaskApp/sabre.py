@@ -1,4 +1,5 @@
 from urllib2 import urlopen, URLError
+from retrying import retry
 import json
 import logging
 import logging.config
@@ -19,6 +20,7 @@ SABRE_API_BASE = 'https://api.test.sabre.com'
 AUTH_TOKEN_ENDPOINT = '/v1/auth/token'
 SEATMAP_ENDPOINT = '/v3.0.0/book/flights/seatmaps?mode=seatmaps'
 
+@retry(stop_max_attempt_number=5)
 def get_access_token():
   def build_credentials():
     client_id     = base64.b64encode(CLIENT_ID)
@@ -45,6 +47,7 @@ def get_access_token():
     headers=headers)
   return extract_token(response)
 
+@retry(stop_max_attempt_number=5)
 def get_seat_map():
   sample_request  = open('sample_data/sabre_seatmap_rest.json', 'r').read()
   print "\n\n"

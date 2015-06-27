@@ -1,4 +1,5 @@
 from urllib2 import urlopen, URLError
+from retrying import retry
 import json
 import logging
 import logging.config
@@ -27,6 +28,7 @@ TOOD: render only available seats
 TODO: handle bundled seats in the response
 """
 
+@retry(stop_max_attempt_number=5)
 def get_airline_info(airline, aircraft, available_seats=None):
   url = API_CALL_TEMPLATE.format(airline, aircraft, API_KEY)
   logger.info("Calling the SeatGuru API - {}".format(url))
