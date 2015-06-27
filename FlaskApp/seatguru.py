@@ -1,11 +1,7 @@
 from urllib2 import urlopen, URLError
-from retrying import retry
 import json
 import logging
 import logging.config
-
-logging.config.fileConfig('logging.conf')
-logger = logging.getLogger('seatguru')
 
 API_KEY = "sabrehack"
 API_CALL_TEMPLATE = "http://www.seatguru.com/api/aircraftconfigurations/1?airline={}&aircraft={}&key={}"
@@ -28,23 +24,57 @@ TOOD: render only available seats
 TODO: handle bundled seats in the response
 """
 
-@retry(stop_max_attempt_number=5)
+rating_metrics = {"white":1, "yellow":2, "green":4, "red":0, "green_yellow":3}
+
 def get_airline_info(airline, aircraft, available_seats=None):
   url = API_CALL_TEMPLATE.format(airline, aircraft, API_KEY)
-  logger.info("Calling the SeatGuru API - {}".format(url))
   response = json.loads(urlopen(url).read())
-  return response
+  return structure_response(response)
   #logger.info("Received response {}".format(json.dumps(response, indent=2)))
 
 def structure_response(response):
   result = {}
   seats = response['aircraft'][0]['seats']
-  for seat in seats:
-    result[extract_seat_identifier(seat)] = {}
+  classes = get_seat_classes(response['aircraft'][0])
+
+  for i in xrange(len(seats)):
+    seat = seats[i]
+    seat_identifier = extract_seat_identifier(seat)
+
+    details = extract_details(response, seat)
+    details['class'] = get_seat_class(classes, int(seat_identifier[0])) 
+    result[seat_identifier] = details
   return result
 
 def extract_seat_identifier(seat):
   row, column = seat["seats"].split(" ")
-  return (row, column)
+  return (int(row), column.strip())
 
-# get_airline_info("BA", "747")
+def get_seat_class(classes, index):
+  # print "Seat class for ", index,
+  for class_name in classes.keys():
+    start, end = classes[class_name]
+    if index >= start and index <= end:
+      # print "is ", class_name
+      return class_name
+  # print "is unknown"
+  return 'unknown'
+
+def get_seat_classes(aircraft):
+  seat_classes = {}
+  classes = aircraft["seat_classes"]
+  for seat_class in classes:
+    category = seat_class["category"]
+    start = seat_class["start"]
+    end = seat_class["end"]
+    seat_classes[category] = (start,end)
+  return seat_classes
+
+def extract_details(response, seat):
+  rating = seat["rating"]
+  score = rating_metrics[rating]
+
+  descriptions = response["seat_descriptions"]
+  desc = descriptions[seat["desc_id"]]
+
+  return {"rating":rating, "score":score, "description":desc}
