@@ -45,10 +45,6 @@ def get_access_token():
     headers=headers)
   return extract_token(response)
 
-# Authorization: Bearer Shared/IDL:IceSess\/SessMgr:1\.0.IDL/Common/!ICESMS\/ACPCRTD!ICESMSLB\/CRT.LB!-0123456789012345678!123456!0!ABCDEFGHIJKLM!E2E-1
-# X-Originating-Ip: 89.197.36.132
-# Content-Type: application/json
-
 def get_seat_map():
   sample_request  = open('sample_data/sabre_seatmap_rest.json', 'r').read()
   print "\n\n"
@@ -57,11 +53,15 @@ def get_seat_map():
   headers = {
     'Authorization': 'Bearer {}'.format(get_access_token()),
     'Accept': 'application/json',
-    'Content-Type': 'application/json',
-    'X-Originating-Ip': '89.197.36.132'
+    'Content-Type': 'application/json'
   }
   # return None
   response = requests.post("{}{}".format(SABRE_API_BASE, SEATMAP_ENDPOINT),
     headers=headers,
     data=sample_request)
   return response
+
+# https://api.test.sabre.com/v1/lists/utilities/airlines?airlinecode=BA
+# https://api.test.sabre.com/v1/lists/utilities/aircraft/equipment?aircraftcode=747
+# https://api.test.sabre.com/v1/lists/supported/cities/NYC/airports
+# https://api.test.sabre.com/v1/lists/supported/cities?country=US
