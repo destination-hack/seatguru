@@ -3,6 +3,7 @@ import re
 from flask.ext.sqlalchemy import SQLAlchemy
 import flask.ext.restless
 import twilio.twiml
+import seatguru
 
 app = Flask(__name__)
 
@@ -58,25 +59,58 @@ def index():
 		return render_template("index.html")
 	except Exception, e:
 		return str(e)
+		
+def split_seat_num(seatnum):
+	num = re.findall("[0-9]+", seatnum)[0]
+	row = re.findall("[A-Za-z]", seatnum)[0]
+	return (int(num), row)
+
+def seat_info_string(seatnum):
+	seat_info = seatguru.get_airline_info("BA", "747")
+	if split_seat_num(seatnum) in seat_info.keys():
+		matched_seat = seat_info[split_seat_num(seatnum)]
+		return matched_seat["description"]
+	else:
+		return None
+
+  
+@app.route("/hello")
+def hellotest():
+	return "Hello!"
 
 @app.route("/twilio", methods=['GET','POST'])
 def twilio_response():
-	phone_number = request.values.get('From')
-	message_body = request.values.get('Body')
+	try:
+		phone_number = request.values.get('From')
+		message_body = request.values.get('Body')
 
+		response = response_for_message_body(message_body)
+
+		resp = twilio.twiml.Response()
+		resp.message(response)
+		return str(resp)
+	except Exception:
+		resp = twilio.twiml.Response()
+		resp.message("An error occured :(")
+		return str(resp)
+		
+
+def response_for_message_body(message_body):
 	flightnum, flightmsg = get_flight_number(message_body)
 	seatnum, seatmsg = get_seat_number(message_body)
 
 	response = ""
 
 	if flightnum and seatnum:
-		response = "Flight number: " + flightnum + ", Seat num: " + seatnum	
+		seatinfo = seat_info_string(seatnum)
+		if seatinfo:
+			response = "You're on flight " +  flightnum + ", " + seatinfo.replace("{SEAT}", seatnum).encode('utf-8')
+		else:
+			response = "This seat does not exist!"
 	else:
 		response = "Error! " + flightmsg + ", " + seatmsg 
 
-	resp = twilio.twiml.Response()
-	resp.message(response)
-	return str(resp)
+	return response
 
 def get_seat_number(message):
 	seat_numbers = re.findall("[0-9]{1,2}[a-zA-Z]{1}", message)
