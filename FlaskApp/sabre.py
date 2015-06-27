@@ -49,37 +49,37 @@ def get_access_token():
   return extract_token(response)
 
 # returns a map of all seats in format [(row, seat_number) : { 'available': True, 'price': '100 USD' }] for a given flight
+# e.g.: get_seat_map('LHR', 'OTP', '2015-07-16', 'BA', '0886')
 def get_seat_map(origin, destination, departure_date, carrier, flight_number):
 
   def build_request():
-    return open('sample_data/sabre_seatmap_rest.json', 'r').read()
-    # return "EnhancedSeatMapRQ": {
-    #     "SeatMapQueryEnhanced": {
-    #       "RequestType": "Payload",
-    #       "Flight": {
-    #         "origin": origin,
-    #         "destination": destination,
-    #         "DepartureDate": {
-    #           "content": departure_date
-    #         },
-    #         # "ArrivalDate": {
-    #         #   "content": departure_date
-    #         # },
-    #         "Operating": {
-    #           "carrier": carrier,
-    #           "content": flight_number,
-    #         },
-    #         "Marketing": [{
-    #           "carrier": carrier,
-    #           "content": flight_number,
-    #         }]
-    #       },
-    #       "CabinDefinition": {
-    #         "RBD": "Y"
-    #       }
-    #     }
-    #   }
-    # }
+    # TODO: figure out why building this as an object instead of string breaks the Sabre API
+    return  '{ "EnhancedSeatMapRQ": {\
+      "SeatMapQueryEnhanced": {\
+        "RequestType": "Payload",\
+        "Flight": {\
+          "destination": "' + destination +'",\
+          "origin": "' + origin + '",\
+          "DepartureDate": {\
+            "content": "' + departure_date + '"\
+          },\
+          "Operating": {\
+            "carrier": "' + carrier + '",\
+            "content": "' + flight_number + '"\
+          },\
+          "Marketing": [\
+            {\
+              "carrier": "' + carrier + '",\
+              "content": "' + flight_number + '"\
+            }\
+          ]\
+        },\
+        "CabinDefinition": {\
+          "RBD": "Y"\
+        }\
+      }\
+    }\
+  }'
 
   # returns a map of all seats in format [(row, seat_number) : { 'available': True, 'price': '100 USD' }] 
   def parse_response(response):
@@ -124,14 +124,19 @@ def get_seat_map(origin, destination, departure_date, carrier, flight_number):
       'Accept': 'application/json',
       'Content-Type': 'application/json'
     }
+    
     request = build_request()
-    #request = json.dumps(build_request(), indent=2)
 
     return requests.post("{}{}".format(SABRE_API_BASE, SEATMAP_ENDPOINT), 
       headers=headers,
       data=request)
   
   response = perform_call()
+
+  if response.status_code != 200:
+    logger.warn("Error occurred while calling SeatMap: {}", response.text)
+    return {}
+  
   seats = parse_response(response)
   return seats
 
