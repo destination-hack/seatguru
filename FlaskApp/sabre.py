@@ -11,7 +11,7 @@ import sys
 import httplib
 httplib.HTTPConnection.debuglevel = 1
 
-logging.config.fileConfig('logging.conf')
+# logging.config.fileConfig('logging.conf')
 logger = logging.getLogger('sabre')
 
 CLIENT_ID = 'V1:wlhqw2b8zyy36xy0:DEVCENTER:EXT'
@@ -29,7 +29,7 @@ def get_access_token():
     return base64.b64encode("{}:{}".format(client_id, client_secret))
 
   def build_auth_endpoint():
-    return "{}{}".format(SABRE_API_BASE, AUTH_TOKEN_ENDPOINT)
+    return SABRE_API_BASE + AUTH_TOKEN_ENDPOINT
 
   def extract_token(response):
     if response.status_code == 200:
@@ -81,7 +81,7 @@ def get_seat_map(origin, destination, departure_date, carrier, flight_number):
     }\
   }'
 
-  # returns a map of all seats in format [(row, seat_number) : { 'available': True, 'price': '100 USD' }] 
+  # returns a map of all seats in format [(row, seat_number) : { 'available': True, 'price': '100 USD' }]
   def parse_response(response):
     data = json.loads(response.text)
     seats = {}
@@ -91,7 +91,7 @@ def get_seat_map(origin, destination, departure_date, carrier, flight_number):
           seat_details = { "available": seat["available"] }
           if "price" in seat:
             seat_details["price"] = seat["price"]
-          # store seat          
+          # store seat
           seats[seat_key] = seat_details
 
     return seats
@@ -114,7 +114,7 @@ def get_seat_map(origin, destination, departure_date, carrier, flight_number):
     row_number = row_data["RowNumber"]
     for seat_data in row_data["Seat"]:
       seats.append(parse_seat(seat_data, row_number))
-    
+
     return seats
 
   @retry(stop_max_attempt_number=5)
@@ -124,19 +124,19 @@ def get_seat_map(origin, destination, departure_date, carrier, flight_number):
       'Accept': 'application/json',
       'Content-Type': 'application/json'
     }
-    
+
     request = build_request()
 
-    return requests.post("{}{}".format(SABRE_API_BASE, SEATMAP_ENDPOINT), 
+    return requests.post("{}{}".format(SABRE_API_BASE, SEATMAP_ENDPOINT),
       headers=headers,
       data=request)
-  
+
   response = perform_call()
 
   if response.status_code != 200:
     logger.warn("Error occurred while calling SeatMap: {}", response.text)
     return {}
-  
+
   seats = parse_response(response)
   return seats
 

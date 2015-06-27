@@ -1,8 +1,9 @@
 from flask import Flask, render_template, request, redirect
+from datetime import datetime
 import re
 import twilio.twiml
 import seatguru
-# import sabre
+import sabre
 import flightaware
 
 app = Flask(__name__)
@@ -92,11 +93,16 @@ def response_for_message_body(message_body):
 
 	# IATA says that airline codes are two letter
 	# ICAO says that they are three letters, whopee
-	airline, flight_number = flight_code[0:2], flight_code[2:-1]
+	airline, flight_number = flight_code[0:2], flight_code[2:]
 	depart, arrive, aircraft = flightaware.get_flight_details(flight_code)
 
 	# throws error if the flight is not found in Sabre (that's what their API does)
-	# sabre.get_seat_map(depart, arrive, date, airline, flight_number)
+	current_date = datetime.now().strftime("%Y-%m-%d")
+	try:
+		sabre.get_seat_map(depart, arrive, current_date, airline, flight_number)
+	except:
+		return "There is no flight {} today! Please text us on the day of your flight.".format(flight_code)
+
 	all_seats = get_seat_list_in_order(airline, aircraft)
 	my_seat  	= get_seat_info(all_seats, seat_code)
 	if not my_seat:
@@ -105,14 +111,14 @@ def response_for_message_body(message_body):
 	best_seat = all_seats[0]
 	if compare_seat(my_seat, best_seat[1]) >= 0:
 		seat_description = interpolate_description(my_seat, seat_code)
-		return "You're on flight {}, {}".format(flight_code, seat_description)
+		return "Your seat is pretty good for flight {}! {}".format(flight_code, seat_description)
 	else:
 		# (21, u'D') -> "21D"
 		top_seat_codes = map(lambda top_seat: create_seat_code(top_seat[0]), all_seats[0:4])
 		best_seat_code = create_seat_code(best_seat[0])
 		seat_description = interpolate_description(best_seat[1], best_seat_code)
-		return "You have a shitty seat! You can try seats {}. {}".format(
-			" ".join(top_seat_codes), seat_description)
+		return "For a nicer flight, try a better seat! How about {}? {}".format(
+			", ".join(top_seat_codes), seat_description)
 
 def create_seat_code(seat_code_tuple):
 	return str(seat_code_tuple[0]) + seat_code_tuple[1]
