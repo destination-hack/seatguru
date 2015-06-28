@@ -76,8 +76,6 @@ def split_seat_num(seatnum):
 def parse_text_message(message_body):
 	flightnum, flightmsg = get_flight_number(message_body)
 	seatnum, seatmsg = get_seat_number(message_body)
-
-	print message_body, seatnum
 	if not flightnum:
 		raise ValueError("Error! {}".format(flightmsg))
 
@@ -101,6 +99,9 @@ def response_for_message_body(message_body):
 	except:
 		return "We could not find flight {}. Are you sure you entered the correct information?".format(flight_code)
 
+	if len(aircraft) < 3:
+		return "We could not find info about your aircraft. Please ask your check-in attendant about seating."
+
 	# throws error if the flight is not found in Sabre (that's what their API does)
 	current_date = datetime.now().strftime("%Y-%m-%d")
 	try:
@@ -108,7 +109,6 @@ def response_for_message_body(message_body):
 	except:
 		return "There is no flight {} today! Please text us on the day of your flight.".format(flight_code)
 
-	print sabre_seat_map
 	def is_available(seat):
 		return seat[0] in sabre_seat_map and sabre_seat_map[seat[0]]['available']
 
