@@ -77,8 +77,8 @@ def parse_text_message(message_body):
 	flightnum, flightmsg = get_flight_number(message_body)
 	seatnum, seatmsg = get_seat_number(message_body)
 
-	if not flightnum or not seatnum:
-		raise ValueError("Error! {}, {}".format(flightmsg, seatmsg))
+	if not flightnum:
+		raise ValueError("Error! {}".format(flightmsg))
 
 	return (flightnum, seatnum)
 
@@ -89,7 +89,7 @@ def response_for_message_body(message_body):
 	try:
 		flight_code, seat_code = parse_text_message(message_body)
 	except ValueError as e:
-		return e
+		return str(e)
 
 	# IATA says that airline codes are two letter
 	# ICAO says that they are three letters, whopee
@@ -99,26 +99,36 @@ def response_for_message_body(message_body):
 	# throws error if the flight is not found in Sabre (that's what their API does)
 	current_date = datetime.now().strftime("%Y-%m-%d")
 	try:
-		sabre.get_seat_map(depart, arrive, current_date, airline, flight_number)
+		sabre_seat_map = sabre.get_seat_map(depart, arrive, current_date, airline, flight_number)
 	except:
 		return "There is no flight {} today! Please text us on the day of your flight.".format(flight_code)
 
-	all_seats = get_seat_list_in_order(airline, aircraft)
-	my_seat  	= get_seat_info(all_seats, seat_code)
-	if not my_seat:
-		return "This seat does not exist!"
+	def is_available(sabre_seat):
+		return seat[0] in sabre_seat_map and sabre_seat_map[seat[0]]['available']
 
-	best_seat = all_seats[0]
+	all_seats 			= get_seat_list_in_order(airline, aircraft, seatnum=seat_code)
+	if len(sabre_seat_map) > 0:
+		available_seats = [s for seat in all_seats if is_available(seat)]
+	else:
+		available_seats = all_seats
+	best_seat = available_seats[0]
+	best_seat_code = create_seat_code(best_seat[0])
+	top_seat_codes = map(lambda top_seat: create_seat_code(top_seat[0]), available_seats[0:4])
+
+	if not seat_code:
+		seat_description = interpolate_description(best_seat[1], best_seat_code)
+		return "For your flight towards {} you should book seats {}. {}".format(
+			arrive, ", ".join(top_seat_codes), seat_description)
+
+	my_seat  				= get_seat_info(all_seats, seat_code)
 	if compare_seat(my_seat, best_seat[1]) >= 0:
 		seat_description = interpolate_description(my_seat, seat_code)
-		return "Your seat is pretty good for flight {}! {}".format(flight_code, seat_description)
+		return "Your seat is pretty good for your flight to {}! {}".format(arrive, seat_description)
 	else:
 		# (21, u'D') -> "21D"
-		top_seat_codes = map(lambda top_seat: create_seat_code(top_seat[0]), all_seats[0:4])
-		best_seat_code = create_seat_code(best_seat[0])
 		seat_description = interpolate_description(best_seat[1], best_seat_code)
-		return "For a nicer flight, try a better seat! How about {}? {}".format(
-			", ".join(top_seat_codes), seat_description)
+		return "For a nicer flight to {}, try a better seat! How about {}? {}".format(
+			arrive, ", ".join(top_seat_codes), seat_description)
 
 def create_seat_code(seat_code_tuple):
 	return str(seat_code_tuple[0]) + seat_code_tuple[1]
