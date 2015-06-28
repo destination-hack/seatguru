@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect
+from flask import Flask, render_template, request, redirect, jsonify
 from datetime import datetime
 import re
 import twilio.twiml
@@ -16,6 +16,16 @@ def index():
 		return render_template("index.html")
 	except Exception, e:
 		return str(e)
+
+@app.route("/seats")
+def seats_api():
+	message = request.args.get('q')
+	try:
+		response = response_for_message_body(message)
+		return jsonify({"response":response})
+	except Exception as e:
+		return jsonify({"response":"Sorry, an error has occured. Please try again!"})
+	
 
 @app.route("/twilio", methods=['GET','POST'])
 def twilio_response():
