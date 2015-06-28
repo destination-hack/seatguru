@@ -37,5 +37,5 @@ def get_flight_details(flight_code):
   depart    = extract_iata_airport_code(soup.find(class_='track-panel-departure'))
   arrive    = extract_iata_airport_code(soup.find(class_='track-panel-arrival'))
   aircraft  = extract_aircraft_code(soup.find(text='Aircraft'))
-  # return (depart, arrive)
   return (depart, arrive, aircraft)
+

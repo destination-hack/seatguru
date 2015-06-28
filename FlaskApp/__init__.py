@@ -94,7 +94,11 @@ def response_for_message_body(message_body):
 	# IATA says that airline codes are two letter
 	# ICAO says that they are three letters, whopee
 	airline, flight_number = flight_code[0:2], flight_code[2:]
-	depart, arrive, aircraft = flightaware.get_flight_details(flight_code)
+
+	try:
+		depart, arrive, aircraft = flightaware.get_flight_details(flight_code)
+	except:
+		return "We could not find flight {}. Are you sure you entered the correct information?".format(flight_code)
 
 	# throws error if the flight is not found in Sabre (that's what their API does)
 	current_date = datetime.now().strftime("%Y-%m-%d")
