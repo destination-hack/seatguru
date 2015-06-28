@@ -115,12 +115,18 @@ def response_for_message_body(message_body):
 	best_seat_code = create_seat_code(best_seat[0])
 	top_seat_codes = map(lambda top_seat: create_seat_code(top_seat[0]), available_seats[0:4])
 
+	best_seat_description = interpolate_description(best_seat[1], best_seat_code)
 	if not seat_code:
-		seat_description = interpolate_description(best_seat[1], best_seat_code)
+
 		return "For your flight towards {} you should book seats {}. {}".format(
-			arrive, ", ".join(top_seat_codes), seat_description)
+			arrive, ", ".join(top_seat_codes), best_seat_description)
+	else:
+		return """Sorry, we could not find your seat for your flight towards {}. To avoid dissapointment,
+try one of these seats {}. {}""".format(arrive, ", ".join(top_seat_codes), best_seat_description)
 
 	my_seat  				= get_seat_info(all_seats, seat_code)
+	print my_seat
+	print best_seat
 	if compare_seat(my_seat, best_seat[1]) >= 0:
 		seat_description = interpolate_description(my_seat, seat_code)
 		return "Your seat is pretty good for your flight to {}! {}".format(arrive, seat_description)
