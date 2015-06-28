@@ -219,6 +219,22 @@
         }
       }
 
+      .glyphicon.spinning {
+          font-size: 70px;
+          animation: spin 1s infinite linear;
+          -webkit-animation: spin2 2s infinite linear;
+      }
+
+      @keyframes spin {
+          from { transform: scale(1) rotate(0deg);}
+          to { transform: scale(1) rotate(360deg);}
+      }
+
+      @-webkit-keyframes spin2 {
+          from { -webkit-transform: rotate(0deg);}
+          to { -webkit-transform: rotate(360deg);}
+      }
+ 
     </style>
 
     <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
@@ -242,22 +258,23 @@
               </div>
             </div>
             <br/>
-            <div class="input-group col-md-12"></div>
+          <form id="search-form" autocomplete="false">
             <div id="custom-search-input">
                 <div class="input-group col-md-12">
-                    <input id="query-input" type="text" class="search-query form-control" placeholder="'Flight BA123 seat 11D'" />
+                    <input id="q" type="text" name="q" class="search-query form-control" placeholder="'Flight BA123 seat 11D'" />
                     <span class="input-group-btn">
-                        <button class="btn btn-danger" type="button" onclick="search()">
+                        <button class="btn" type="button">
                             <span class=" glyphicon glyphicon-search"></span>
                         </button>
                     </span>
                 </div>
                 <br><br>
-                <div class="col-md-12" class="hidden">
-                  <div><h3 id="result-holder" style="font-weight:normal;"></h3></div>
+                <div class="col-md-12">
+                    <span id="spinner" class="glyphicon glyphicon-refresh spinning" style="display:none;"></span>
+                    <h3 id="result-holder"></h3>
                 </div>
             </div>
-          </div>
+          <form>
 
           <div class="mastfoot">
             <div class="inner">
@@ -279,16 +296,38 @@
     <script>
       function search(){
           query = $(".search-query")[0].value;
+          if (!query) {
+            return
+          }
+
+          onStartLoading();
           var xmlHttp = new XMLHttpRequest();
           xmlHttp.onreadystatechange = function () {
             if (xmlHttp.readyState == 4 && xmlHttp.status == 200) {
+              onLoaded();
               $("#result-holder").text(JSON.parse(xmlHttp.responseText)["response"]);
             }
           }
           xmlHttp.open( "GET", "/seats?q=" + query, true );
           xmlHttp.send();
-          return true;
       }
+
+      function onStartLoading() {
+        $("#spinner").show();
+        $("#result-holder").hide();
+      }
+
+      function onLoaded() {
+        $("#spinner").hide();
+        $("#result-holder").show();
+      }
+
+      $("#search-form").submit(function() {
+        search();
+        // prevent default
+        return false;
+      });
+
     </script>
   </body>
 </html>
