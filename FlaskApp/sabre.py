@@ -8,8 +8,8 @@ import requests
 import sys
 
 # enables debugging the calls made with requests
-import httplib
-httplib.HTTPConnection.debuglevel = 1
+# import httplib
+# httplib.HTTPConnection.debuglevel = 1
 
 # logging.config.fileConfig('logging.conf')
 logger = logging.getLogger('sabre')
@@ -93,7 +93,6 @@ def get_seat_map(origin, destination, departure_date, carrier, flight_number):
             seat_details["price"] = seat["price"]
           # store seat
           seats[seat_key] = seat_details
-
     return seats
 
   # extracts seat details from Sabre response

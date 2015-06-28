@@ -19,19 +19,19 @@ def index():
 
 @app.route("/twilio", methods=['GET','POST'])
 def twilio_response():
-	# try:
-	phone_number = request.values.get('From')
-	message_body = request.values.get('Body')
+	try:
+		phone_number = request.values.get('From')
+		message_body = request.values.get('Body')
 
-	response = response_for_message_body(message_body)
+		response = response_for_message_body(message_body)
 
-	resp = twilio.twiml.Response()
-	resp.message(response)
-	return str(resp)
-	# except Exception as e:
-		# resp = twilio.twiml.Response()
-		# resp.message("An error occured :(")
-		# return resp
+		resp = twilio.twiml.Response()
+		resp.message(response)
+		return str(resp)
+	except Exception as e:
+		resp = twilio.twiml.Response()
+		resp.message("Sorry :(! An error occurred, please try again later.")
+		return resp
 
 '''
 Given a seat number and a flight number
@@ -77,6 +77,7 @@ def parse_text_message(message_body):
 	flightnum, flightmsg = get_flight_number(message_body)
 	seatnum, seatmsg = get_seat_number(message_body)
 
+	print message_body, seatnum
 	if not flightnum:
 		raise ValueError("Error! {}".format(flightmsg))
 
@@ -107,30 +108,32 @@ def response_for_message_body(message_body):
 	except:
 		return "There is no flight {} today! Please text us on the day of your flight.".format(flight_code)
 
-	def is_available(sabre_seat):
+	print sabre_seat_map
+	def is_available(seat):
 		return seat[0] in sabre_seat_map and sabre_seat_map[seat[0]]['available']
 
 	all_seats 			= get_seat_list_in_order(airline, aircraft, seatnum=seat_code)
 	if len(sabre_seat_map) > 0:
-		available_seats = [s for seat in all_seats if is_available(seat)]
+		available_seats = [seat for seat in all_seats if is_available(seat)]
 	else:
 		available_seats = all_seats
+
 	best_seat = available_seats[0]
 	best_seat_code = create_seat_code(best_seat[0])
 	top_seat_codes = map(lambda top_seat: create_seat_code(top_seat[0]), available_seats[0:4])
 
 	best_seat_description = interpolate_description(best_seat[1], best_seat_code)
-	if not seat_code:
 
+	if not seat_code:
 		return "For your flight towards {} you should book seats {}. {}".format(
 			arrive, ", ".join(top_seat_codes), best_seat_description)
-	else:
+
+	my_seat  				= get_seat_info(all_seats, seat_code)
+	if not my_seat:
 		return """Sorry, we could not find your seat for your flight towards {}. To avoid dissapointment,
 try one of these seats {}. {}""".format(arrive, ", ".join(top_seat_codes), best_seat_description)
 
-	my_seat  				= get_seat_info(all_seats, seat_code)
-	print my_seat
-	print best_seat
+
 	if compare_seat(my_seat, best_seat[1]) >= 0:
 		seat_description = interpolate_description(my_seat, seat_code)
 		return "Your seat is pretty good for your flight to {}! {}".format(arrive, seat_description)
